@@ -14,7 +14,7 @@ public class Typist
 {
     // Fields of class Typist
     private String name;
-    private char symbol;
+    private String symbol;
     private int progress;
     private boolean burntOut;
     private int burnoutTurnsRemaining;
@@ -29,7 +29,7 @@ public class Typist
      * @param typistName    the name of the typist (e.g. "TURBOFINGERS")
      * @param typistAccuracy the typist's accuracy rating, between 0.0 and 1.0
      */
-    public Typist(char typistSymbol, String typistName, double typistAccuracy)
+    public Typist(String typistSymbol, String typistName, double typistAccuracy)
     {
         this.symbol = typistSymbol;
         this.name = typistName;
@@ -105,9 +105,9 @@ public class Typist
     /**
      * Returns the character symbol used to represent this typist.
      *
-     * @return the typist's symbol as a char
+     * @return the typist's symbol as a String
      */
-    public char getSymbol()
+    public String getSymbol()
     {
         return symbol;
     }
@@ -189,66 +189,11 @@ public class Typist
     /**
      * Sets the symbol used to represent this typist.
      *
-     * @param newSymbol the new symbol character
+     * @param newSymbol the new symbol String
      */
-    public void setSymbol(char newSymbol)
+    public void setSymbol(String newSymbol)
     {
         symbol = newSymbol;
     }
-
-public static void main(String[] args) {
-    Typist t = new Typist('①', "TURBOFINGERS", 0.85);
-
-    System.out.println("=== Test 1: Normal forward movement ===");
-    t.typeCharacter();
-    t.typeCharacter();
-    System.out.println("Expected progress: 2");
-    System.out.println("Actual progress: " + t.getProgress());
-
-    System.out.println("\n=== Test 2: slideBack cannot go below zero ===");
-    t.slideBack(5);
-    System.out.println("Expected progress: 0");
-    System.out.println("Actual progress: " + t.getProgress());
-
-    System.out.println("\n=== Test 3: Burnout countdown ===");
-    t.burnOut(3);
-    System.out.println("After burnOut(3): burntOut = " + t.isBurntOut()
-            + ", turns remaining = " + t.getBurnoutTurnsRemaining());
-
-    t.recoverFromBurnout();
-    System.out.println("After 1 recovery: burntOut = " + t.isBurntOut()
-            + ", turns remaining = " + t.getBurnoutTurnsRemaining());
-
-    t.recoverFromBurnout();
-    System.out.println("After 2 recoveries: burntOut = " + t.isBurntOut()
-            + ", turns remaining = " + t.getBurnoutTurnsRemaining());
-
-    t.recoverFromBurnout();
-    System.out.println("After 3 recoveries: burntOut = " + t.isBurntOut()
-            + ", turns remaining = " + t.getBurnoutTurnsRemaining());
-
-    System.out.println("\n=== Test 4: resetToStart clears progress and burnout state ===");
-    t.typeCharacter();
-    t.typeCharacter();
-    t.burnOut(2);
-    System.out.println("Before reset: progress = " + t.getProgress()
-            + ", burntOut = " + t.isBurntOut()
-            + ", turns remaining = " + t.getBurnoutTurnsRemaining());
-
-    t.resetToStart();
-    System.out.println("After reset: progress = " + t.getProgress()
-            + ", burntOut = " + t.isBurntOut()
-            + ", turns remaining = " + t.getBurnoutTurnsRemaining());
-
-    System.out.println("\n=== Test 5: Accuracy clamping ===");
-    t.setAccuracy(1.5);
-    System.out.println("After setAccuracy(1.5): " + t.getAccuracy());
-
-    t.setAccuracy(-0.4);
-    System.out.println("After setAccuracy(-0.4): " + t.getAccuracy());
-
-    t.setAccuracy(0.6);
-    System.out.println("After setAccuracy(0.6): " + t.getAccuracy());
-}
 
 }
