@@ -1,5 +1,4 @@
 package Part2;
-
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
@@ -15,23 +14,24 @@ public class TypingRaceGUI extends JFrame
     private String passage;
     private int passageLength;
 
-    private Typist seat1Typist;
-    private Typist seat2Typist;
-    private Typist seat3Typist;
+    private Typist[] typists;
+    private JLabel[] laneLabels;
 
     private boolean finished;
     private Typist winner;
 
     private JLabel titleLabel;
     private JLabel passageLabel;
-    private JLabel lane1Label;
-    private JLabel lane2Label;
-    private JLabel lane3Label;
     private JLabel statusLabel;
 
     private JComboBox<String> passageBox;
+    private JComboBox<Integer> seatCountBox;
+
     private JTextField customPassageField;
     private JButton startButton;
+
+    private JPanel racePanel;
+    private JPanel customPanel;
 
     private Timer raceTimer;
 
@@ -45,7 +45,7 @@ public class TypingRaceGUI extends JFrame
     public TypingRaceGUI()
     {
         setTitle("Typing Race GUI");
-        setSize(1100, 550);
+        setSize(1200, 650);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
@@ -62,15 +62,18 @@ public class TypingRaceGUI extends JFrame
     private void createTopPanel()
     {
         JPanel topPanel = new JPanel();
-        topPanel.setLayout(new GridLayout(4, 1));
+        topPanel.setLayout(new GridLayout(5, 1));
 
         titleLabel = new JLabel("Typing Race", SwingConstants.CENTER);
         titleLabel.setFont(new Font("Arial", Font.BOLD, 28));
 
         JLabel instructionLabel = new JLabel(
-            "Choose a passage length or enter your own custom passage.",
+            "Choose a passage, choose how many typists will compete, then press Start Race.",
             SwingConstants.CENTER
         );
+
+        JPanel passagePanel = new JPanel();
+        passagePanel.add(new JLabel("Passage type:"));
 
         passageBox = new JComboBox<String>();
         passageBox.addItem("Short");
@@ -78,12 +81,48 @@ public class TypingRaceGUI extends JFrame
         passageBox.addItem("Long");
         passageBox.addItem("Custom");
 
-        customPassageField = new JTextField("Enter your custom passage here");
+        passagePanel.add(passageBox);
+
+        customPanel = new JPanel();
+        customPanel.setLayout(new BorderLayout());
+
+        customPanel.add(new JLabel("Custom passage: "), BorderLayout.WEST);
+
+        customPassageField = new JTextField("");
+        customPanel.add(customPassageField, BorderLayout.CENTER);
+
+        customPanel.setVisible(false);
+
+        passageBox.addActionListener((ActionEvent e) -> {
+            String choice = (String) passageBox.getSelectedItem();
+
+            if (choice.equals("Custom"))
+            {
+                customPanel.setVisible(true);
+            }
+            else
+            {
+                customPanel.setVisible(false);
+            }
+        });
+
+        JPanel seatPanel = new JPanel();
+        seatPanel.add(new JLabel("Number of typists:"));
+
+        seatCountBox = new JComboBox<Integer>();
+        seatCountBox.addItem(2);
+        seatCountBox.addItem(3);
+        seatCountBox.addItem(4);
+        seatCountBox.addItem(5);
+        seatCountBox.addItem(6);
+
+        seatPanel.add(seatCountBox);
 
         topPanel.add(titleLabel);
         topPanel.add(instructionLabel);
-        topPanel.add(passageBox);
-        topPanel.add(customPassageField);
+        topPanel.add(passagePanel);
+        topPanel.add(customPanel);
+        topPanel.add(seatPanel);
 
         add(topPanel, BorderLayout.NORTH);
     }
@@ -93,20 +132,13 @@ public class TypingRaceGUI extends JFrame
      */
     private void createRacePanel()
     {
-        JPanel racePanel = new JPanel();
-        racePanel.setLayout(new GridLayout(4, 1));
+        racePanel = new JPanel();
+        racePanel.setLayout(new GridLayout(1, 1));
 
-        passageLabel = new JLabel("", SwingConstants.CENTER);
+        passageLabel = new JLabel("Passage will appear here.", SwingConstants.CENTER);
         passageLabel.setFont(new Font("Monospaced", Font.PLAIN, 18));
 
-        lane1Label = createLaneLabel();
-        lane2Label = createLaneLabel();
-        lane3Label = createLaneLabel();
-
         racePanel.add(passageLabel);
-        racePanel.add(lane1Label);
-        racePanel.add(lane2Label);
-        racePanel.add(lane3Label);
 
         add(racePanel, BorderLayout.CENTER);
     }
@@ -150,19 +182,19 @@ public class TypingRaceGUI extends JFrame
 
         if (choice.equals("Short"))
         {
-            return "Java is fun.";
+            return "The quick fox jumps.";
         }
         else if (choice.equals("Medium"))
         {
-            return "Object oriented programming helps organise code clearly.";
+            return "Typing quickly requires focus accuracy and steady rhythm.";
         }
         else if (choice.equals("Long"))
         {
-            return "Typing race applications show progress by moving a cursor through the passage character by character.";
+            return "In a typing race each player moves through the passage character by character while mistakes can slow them down or push them backwards.";
         }
         else
         {
-            return customPassageField.getText();
+            return customPassageField.getText().trim();
         }
     }
 
@@ -181,24 +213,96 @@ public class TypingRaceGUI extends JFrame
 
         passageLength = passage.length();
 
-        seat1Typist = new Typist('1', "TURBOFINGERS", 0.85);
-        seat2Typist = new Typist('2', "HUNT_N_PECK", 0.40);
-        seat3Typist = new Typist('3', "KEYBOARD_KING", 0.70);
+        int numberOfTypists = (Integer) seatCountBox.getSelectedItem();
+
+        createTypists(numberOfTypists);
+        createLaneLabels(numberOfTypists);
 
         finished = false;
         winner = null;
 
-        seat1Typist.resetToStart();
-        seat2Typist.resetToStart();
-        seat3Typist.resetToStart();
+        for (int i = 0; i < typists.length; i++)
+        {
+            typists[i].resetToStart();
+        }
 
         startButton.setEnabled(false);
+        passageBox.setEnabled(false);
+        seatCountBox.setEnabled(false);
+        customPassageField.setEnabled(false);
+
         statusLabel.setText("Race started!");
 
         updateGUI();
 
         raceTimer = new Timer(200, (ActionEvent e) -> raceStep());
         raceTimer.start();
+    }
+
+    /**
+     * Creates the requested number of typists.
+     */
+    private void createTypists(int numberOfTypists)
+    {
+        typists = new Typist[numberOfTypists];
+
+        String[] names = {
+            "TURBOFINGERS",
+            "HUNT_N_PECK",
+            "KEYBOARD_KING",
+            "TYPE_MASTER",
+            "FAST_HANDS",
+            "SPACEBAR_PRO"
+        };
+
+        char[] symbols = {
+            '1',
+            '2',
+            '3',
+            '4',
+            '5',
+            '6'
+        };
+
+        double[] accuracies = {
+            0.85,
+            0.40,
+            0.70,
+            0.60,
+            0.75,
+            0.55
+        };
+
+        for (int i = 0; i < numberOfTypists; i++)
+        {
+            typists[i] = new Typist(symbols[i], names[i], accuracies[i]);
+        }
+    }
+
+    /**
+     * Creates the correct number of visual lanes.
+     */
+    private void createLaneLabels(int numberOfTypists)
+    {
+        racePanel.removeAll();
+
+        racePanel.setLayout(new GridLayout(numberOfTypists + 1, 1));
+
+        passageLabel = new JLabel("", SwingConstants.CENTER);
+        passageLabel.setFont(new Font("Monospaced", Font.PLAIN, 18));
+
+        racePanel.add(passageLabel);
+
+        laneLabels = new JLabel[numberOfTypists];
+
+        for (int i = 0; i < numberOfTypists; i++)
+        {
+            laneLabels[i] = createLaneLabel();
+            racePanel.add(laneLabels[i]);
+        }
+
+        racePanel.revalidate();
+        racePanel.repaint();
     }
 
     /**
@@ -214,32 +318,31 @@ public class TypingRaceGUI extends JFrame
             return;
         }
 
-        advanceTypist(seat1Typist);
-        advanceTypist(seat2Typist);
-        advanceTypist(seat3Typist);
+        for (int i = 0; i < typists.length; i++)
+        {
+            advanceTypist(typists[i]);
+        }
 
         updateGUI();
 
-        if (raceFinishedBy(seat1Typist))
+        for (int i = 0; i < typists.length; i++)
         {
-            finished = true;
-            winner = seat1Typist;
-        }
-        else if (raceFinishedBy(seat2Typist))
-        {
-            finished = true;
-            winner = seat2Typist;
-        }
-        else if (raceFinishedBy(seat3Typist))
-        {
-            finished = true;
-            winner = seat3Typist;
+            if (raceFinishedBy(typists[i]))
+            {
+                finished = true;
+                winner = typists[i];
+                break;
+            }
         }
 
         if (finished)
         {
             raceTimer.stop();
+
             startButton.setEnabled(true);
+            passageBox.setEnabled(true);
+            seatCountBox.setEnabled(true);
+            customPassageField.setEnabled(true);
 
             statusLabel.setText(
                 "Winner: " + winner.getName()
@@ -301,9 +404,10 @@ public class TypingRaceGUI extends JFrame
             "<html><b>Passage:</b> " + escapeHTML(passage) + "</html>"
         );
 
-        lane1Label.setText(createLaneHTML(seat1Typist));
-        lane2Label.setText(createLaneHTML(seat2Typist));
-        lane3Label.setText(createLaneHTML(seat3Typist));
+        for (int i = 0; i < typists.length; i++)
+        {
+            laneLabels[i].setText(createLaneHTML(typists[i]));
+        }
     }
 
     /**
