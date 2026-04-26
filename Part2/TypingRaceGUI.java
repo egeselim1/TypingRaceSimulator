@@ -20,6 +20,8 @@ public class TypingRaceGUI extends JFrame
     private boolean finished;
     private Typist winner;
 
+    private int turnCounter;
+
     private JLabel titleLabel;
     private JLabel passageLabel;
     private JLabel statusLabel;
@@ -30,22 +32,26 @@ public class TypingRaceGUI extends JFrame
     private JTextField customPassageField;
     private JButton startButton;
 
+    private JCheckBox autocorrectBox;
+    private JCheckBox caffeineBox;
+    private JCheckBox nightShiftBox;
+
     private JPanel racePanel;
     private JPanel customPanel;
 
     private Timer raceTimer;
 
-    private static final double MISTYPE_BASE_CHANCE = 0.3;
     private static final int SLIDE_BACK_AMOUNT = 2;
     private static final int BURNOUT_DURATION = 3;
 
-    /**
-     * Constructor for the GUI window.
-     */
+    private static final double CAFFEINE_SPEED_BOOST = 0.15;
+    private static final double CAFFEINE_EXTRA_BURNOUT_RISK = 0.03;
+    private static final double NIGHT_SHIFT_ACCURACY_PENALTY = 0.10;
+
     public TypingRaceGUI()
     {
         setTitle("Typing Race GUI");
-        setSize(1200, 650);
+        setSize(1200, 720);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
@@ -56,19 +62,16 @@ public class TypingRaceGUI extends JFrame
         setVisible(true);
     }
 
-    /**
-     * Creates the top part of the GUI.
-     */
     private void createTopPanel()
     {
         JPanel topPanel = new JPanel();
-        topPanel.setLayout(new GridLayout(5, 1));
+        topPanel.setLayout(new GridLayout(6, 1));
 
         titleLabel = new JLabel("Typing Race", SwingConstants.CENTER);
         titleLabel.setFont(new Font("Arial", Font.BOLD, 28));
 
         JLabel instructionLabel = new JLabel(
-            "Choose a passage, choose how many typists will compete, then press Start Race.",
+            "Choose a passage, choose how many typists will compete, configure modifiers, then press Start Race.",
             SwingConstants.CENTER
         );
 
@@ -118,18 +121,27 @@ public class TypingRaceGUI extends JFrame
 
         seatPanel.add(seatCountBox);
 
+        JPanel modifierPanel = new JPanel();
+        modifierPanel.add(new JLabel("Difficulty modifiers:"));
+
+        autocorrectBox = new JCheckBox("Autocorrect");
+        caffeineBox = new JCheckBox("Caffeine Mode");
+        nightShiftBox = new JCheckBox("Night Shift");
+
+        modifierPanel.add(autocorrectBox);
+        modifierPanel.add(caffeineBox);
+        modifierPanel.add(nightShiftBox);
+
         topPanel.add(titleLabel);
         topPanel.add(instructionLabel);
         topPanel.add(passagePanel);
         topPanel.add(customPanel);
         topPanel.add(seatPanel);
+        topPanel.add(modifierPanel);
 
         add(topPanel, BorderLayout.NORTH);
     }
 
-    /**
-     * Creates the race display area.
-     */
     private void createRacePanel()
     {
         racePanel = new JPanel();
@@ -143,9 +155,6 @@ public class TypingRaceGUI extends JFrame
         add(racePanel, BorderLayout.CENTER);
     }
 
-    /**
-     * Creates one lane label for one typist.
-     */
     private JLabel createLaneLabel()
     {
         JLabel label = new JLabel("", SwingConstants.LEFT);
@@ -154,9 +163,6 @@ public class TypingRaceGUI extends JFrame
         return label;
     }
 
-    /**
-     * Creates the bottom part of the GUI.
-     */
     private void createBottomPanel()
     {
         JPanel bottomPanel = new JPanel();
@@ -173,9 +179,6 @@ public class TypingRaceGUI extends JFrame
         add(bottomPanel, BorderLayout.SOUTH);
     }
 
-    /**
-     * Gets the passage selected by the user.
-     */
     private String getSelectedPassage()
     {
         String choice = (String) passageBox.getSelectedItem();
@@ -198,9 +201,6 @@ public class TypingRaceGUI extends JFrame
         }
     }
 
-    /**
-     * Starts the race.
-     */
     private void startRace()
     {
         passage = getSelectedPassage();
@@ -216,10 +216,12 @@ public class TypingRaceGUI extends JFrame
         int numberOfTypists = (Integer) seatCountBox.getSelectedItem();
 
         createTypists(numberOfTypists);
+        applyStartingModifiers();
         createLaneLabels(numberOfTypists);
 
         finished = false;
         winner = null;
+        turnCounter = 0;
 
         for (int i = 0; i < typists.length; i++)
         {
@@ -230,6 +232,9 @@ public class TypingRaceGUI extends JFrame
         passageBox.setEnabled(false);
         seatCountBox.setEnabled(false);
         customPassageField.setEnabled(false);
+        autocorrectBox.setEnabled(false);
+        caffeineBox.setEnabled(false);
+        nightShiftBox.setEnabled(false);
 
         statusLabel.setText("Race started!");
 
@@ -239,9 +244,6 @@ public class TypingRaceGUI extends JFrame
         raceTimer.start();
     }
 
-    /**
-     * Creates the requested number of typists.
-     */
     private void createTypists(int numberOfTypists)
     {
         typists = new Typist[numberOfTypists];
@@ -279,9 +281,19 @@ public class TypingRaceGUI extends JFrame
         }
     }
 
-    /**
-     * Creates the correct number of visual lanes.
-     */
+    private void applyStartingModifiers()
+    {
+        if (nightShiftBox.isSelected())
+        {
+            for (int i = 0; i < typists.length; i++)
+            {
+                typists[i].setAccuracy(
+                    typists[i].getAccuracy() - NIGHT_SHIFT_ACCURACY_PENALTY
+                );
+            }
+        }
+    }
+
     private void createLaneLabels(int numberOfTypists)
     {
         racePanel.removeAll();
@@ -305,18 +317,14 @@ public class TypingRaceGUI extends JFrame
         racePanel.repaint();
     }
 
-    /**
-     * Runs one turn of the race.
-     *
-     * This replaces the while loop from the terminal version.
-     * Swing Timer calls this method every 200 milliseconds.
-     */
     private void raceStep()
     {
         if (finished)
         {
             return;
         }
+
+        turnCounter = turnCounter + 1;
 
         for (int i = 0; i < typists.length; i++)
         {
@@ -343,6 +351,9 @@ public class TypingRaceGUI extends JFrame
             passageBox.setEnabled(true);
             seatCountBox.setEnabled(true);
             customPassageField.setEnabled(true);
+            autocorrectBox.setEnabled(true);
+            caffeineBox.setEnabled(true);
+            nightShiftBox.setEnabled(true);
 
             statusLabel.setText(
                 "Winner: " + winner.getName()
@@ -354,8 +365,9 @@ public class TypingRaceGUI extends JFrame
     /**
      * Simulates one turn for a typist.
      *
-     * This uses the same race behaviour as the original terminal version:
-     * typing, mistyping, sliding backwards, and burnout.
+     * In one turn, a typist makes one attempt:
+     * - If the attempt succeeds, they type one character.
+     * - If the attempt fails, it is treated as a mistype and they slide back.
      */
     private void advanceTypist(Typist theTypist)
     {
@@ -366,38 +378,60 @@ public class TypingRaceGUI extends JFrame
             return;
         }
 
-        if (Math.random() < theTypist.getAccuracy())
+        double typingChance = theTypist.getAccuracy();
+
+        if (caffeineBox.isSelected() && turnCounter <= 10)
+        {
+            typingChance = typingChance + CAFFEINE_SPEED_BOOST;
+
+            if (typingChance > 1.0)
+            {
+                typingChance = 1.0;
+            }
+        }
+
+        int slideBackAmount = SLIDE_BACK_AMOUNT;
+
+        if (autocorrectBox.isSelected())
+        {
+            slideBackAmount = SLIDE_BACK_AMOUNT / 2;
+
+            if (slideBackAmount < 1)
+            {
+                slideBackAmount = 1;
+            }
+        }
+
+        if (Math.random() < typingChance)
         {
             theTypist.typeCharacter();
             theTypist.setAccuracy(theTypist.getAccuracy() + 0.001);
         }
-
-        if (Math.random() < (1 - theTypist.getAccuracy()) * MISTYPE_BASE_CHANCE)
+        else
         {
-            theTypist.slideBack(SLIDE_BACK_AMOUNT);
+            theTypist.slideBack(slideBackAmount);
             theTypist.setAccuracy(theTypist.getAccuracy() - 0.005);
         }
 
-        if (Math.random() < 0.05 * theTypist.getAccuracy() * theTypist.getAccuracy())
+        double burnoutRisk = 0.05 * theTypist.getAccuracy() * theTypist.getAccuracy();
+
+        if (caffeineBox.isSelected() && turnCounter > 10)
+        {
+            burnoutRisk = burnoutRisk + CAFFEINE_EXTRA_BURNOUT_RISK;
+        }
+
+        if (Math.random() < burnoutRisk)
         {
             theTypist.burnOut(BURNOUT_DURATION);
             theTypist.setAccuracy(theTypist.getAccuracy() - 0.01);
         }
     }
 
-    /**
-     * Checks whether a typist has completed the passage.
-     */
     private boolean raceFinishedBy(Typist theTypist)
     {
         return theTypist.getProgress() >= passageLength;
     }
 
-    /**
-     * Updates the GUI display.
-     *
-     * This replaces printRace() from the terminal version.
-     */
     private void updateGUI()
     {
         passageLabel.setText(
@@ -410,12 +444,6 @@ public class TypingRaceGUI extends JFrame
         }
     }
 
-    /**
-     * Creates the visual display for one typist.
-     *
-     * Completed characters are highlighted green.
-     * The typist symbol acts like the cursor and is highlighted yellow.
-     */
     private String createLaneHTML(Typist typist)
     {
         int progress = typist.getProgress();
@@ -450,17 +478,11 @@ public class TypingRaceGUI extends JFrame
             + "</html>";
     }
 
-    /**
-     * Rounds accuracy to make it easier to read on screen.
-     */
     private double roundAccuracy(double accuracy)
     {
         return Math.round(accuracy * 1000.0) / 1000.0;
     }
 
-    /**
-     * Escapes special HTML characters so the passage displays correctly.
-     */
     private String escapeHTML(String text)
     {
         return text
@@ -470,9 +492,6 @@ public class TypingRaceGUI extends JFrame
             .replace(" ", "&nbsp;");
     }
 
-    /**
-     * Main method to run the GUI.
-     */
     public static void main(String[] args)
     {
         new TypingRaceGUI();
