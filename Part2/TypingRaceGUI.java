@@ -1,26 +1,22 @@
 package Part2;
+
 import javax.swing.*;
+
 import java.awt.*;
 import java.awt.event.ActionEvent;
 
 /**
  * GUI version of the typing race.
  *
- * This class controls the graphical interface and the overall race flow.
+ * This class controls only the graphical interface.
+ * The TypingRaceLogic class stores the internal race logic.
  * The Typist class stores the state and behaviour of each individual typist.
  */
 public class TypingRaceGUI extends JFrame
 {
-    private String passage;
-    private int passageLength;
+    private TypingRaceLogic logic;
 
-    private Typist[] typists;
     private JLabel[] laneLabels;
-
-    private boolean finished;
-    private Typist winner;
-
-    private int turnCounter;
 
     private JLabel titleLabel;
     private JLabel passageLabel;
@@ -51,37 +47,21 @@ public class TypingRaceGUI extends JFrame
     private JCheckBox[] headphonesBoxes;
 
     private JTextArea impactArea;
+    private JTextArea resultsArea;
+    private JTextArea historyArea;
+    private JTextArea comparisonArea;
+    private JTextArea leaderboardArea;
 
-    private String[] typistColours;
-
-    private int[] typistDelays;
-    private int[] typistCooldowns;
-    private int[] typistBurnoutDurations;
-
-    private double[] typistBurnoutMultipliers;
+    private JComboBox<String> comparisonMetricBox;
 
     private Timer raceTimer;
 
-    private static final int MAX_TYPISTS = 6;
-
-    private static final int TIMER_TICK = 50;
-    private static final int BASE_TYPING_DELAY = 350;
-
-    private static final int SLIDE_BACK_AMOUNT = 2;
-    private static final int BURNOUT_DURATION = 3;
-
-    private static final double CAFFEINE_ACCURACY_BOOST = 0.15;
-    private static final double CAFFEINE_EXTRA_BURNOUT_RISK = 0.03;
-    private static final double NIGHT_SHIFT_ACCURACY_PENALTY = 0.10;
-
-    private static final double ENERGY_DRINK_FIRST_HALF_BOOST = 0.08;
-    private static final double ENERGY_DRINK_SECOND_HALF_PENALTY = 0.08;
-    private static final double HEADPHONES_MISTYPE_REDUCTION = 0.07;
-
     public TypingRaceGUI()
     {
+        logic = new TypingRaceLogic();
+
         setTitle("Typing Race GUI");
-        setSize(1400, 900);
+        setSize(1450, 900);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
@@ -101,7 +81,7 @@ public class TypingRaceGUI extends JFrame
         titleLabel.setFont(new Font("Arial", Font.BOLD, 28));
 
         JLabel instructionLabel = new JLabel(
-            "Choose passage, typist count, style, keyboard, symbol, colour, modifiers, and accessories.",
+            "Choose passage, typist count, style, keyboard, symbol, colour, modifiers, accessories, and track rankings.",
             SwingConstants.CENTER
         );
 
@@ -201,7 +181,7 @@ public class TypingRaceGUI extends JFrame
         settingsPanel.add(impactArea);
 
         JScrollPane scrollPane = new JScrollPane(settingsPanel);
-        scrollPane.setPreferredSize(new Dimension(560, 700));
+        scrollPane.setPreferredSize(new Dimension(570, 700));
 
         JPanel startPanel = new JPanel();
         startPanel.setLayout(new GridLayout(2, 1));
@@ -228,19 +208,19 @@ public class TypingRaceGUI extends JFrame
         typistConfigPanel.setLayout(new BoxLayout(typistConfigPanel, BoxLayout.Y_AXIS));
         typistConfigPanel.setBorder(BorderFactory.createTitledBorder("Typist Settings"));
 
-        styleBoxes = new JComboBox[MAX_TYPISTS];
-        keyboardBoxes = new JComboBox[MAX_TYPISTS];
-        colourBoxes = new JComboBox[MAX_TYPISTS];
-        symbolFields = new JTextField[MAX_TYPISTS];
-        typistRows = new JPanel[MAX_TYPISTS];
+        styleBoxes = new JComboBox[TypingRaceLogic.MAX_TYPISTS];
+        keyboardBoxes = new JComboBox[TypingRaceLogic.MAX_TYPISTS];
+        colourBoxes = new JComboBox[TypingRaceLogic.MAX_TYPISTS];
+        symbolFields = new JTextField[TypingRaceLogic.MAX_TYPISTS];
+        typistRows = new JPanel[TypingRaceLogic.MAX_TYPISTS];
 
-        wristSupportBoxes = new JCheckBox[MAX_TYPISTS];
-        energyDrinkBoxes = new JCheckBox[MAX_TYPISTS];
-        headphonesBoxes = new JCheckBox[MAX_TYPISTS];
+        wristSupportBoxes = new JCheckBox[TypingRaceLogic.MAX_TYPISTS];
+        energyDrinkBoxes = new JCheckBox[TypingRaceLogic.MAX_TYPISTS];
+        headphonesBoxes = new JCheckBox[TypingRaceLogic.MAX_TYPISTS];
 
         String[] defaultSymbols = {"⌨", "🐢", "👑", "⚡", "🚀", "🎯"};
 
-        for (int i = 0; i < MAX_TYPISTS; i++)
+        for (int i = 0; i < TypingRaceLogic.MAX_TYPISTS; i++)
         {
             JPanel row = new JPanel();
             row.setLayout(new GridLayout(7, 2));
@@ -317,177 +297,83 @@ public class TypingRaceGUI extends JFrame
         updateImpactArea();
     }
 
-    private void updateImpactArea()
-    {
-        if (impactArea == null || seatCountBox == null || styleBoxes == null)
-        {
-            return;
-        }
-
-        int numberOfTypists = (Integer) seatCountBox.getSelectedItem();
-
-        String text = "";
-
-        text = text + "Global Modifiers:\n";
-
-        if (nightShiftBox != null && nightShiftBox.isSelected())
-        {
-            text = text + "- Night Shift: accuracy "
-                + signed(-NIGHT_SHIFT_ACCURACY_PENALTY)
-                + " for every typist.\n";
-        }
-        else
-        {
-            text = text + "- Night Shift: off.\n";
-        }
-
-        if (autocorrectBox != null && autocorrectBox.isSelected())
-        {
-            text = text + "- Autocorrect: slide-back penalty is halved after a mistype.\n";
-        }
-        else
-        {
-            text = text + "- Autocorrect: off.\n";
-        }
-
-        if (caffeineBox != null && caffeineBox.isSelected())
-        {
-            text = text + "- Caffeine Mode: accuracy/typing chance +"
-                + CAFFEINE_ACCURACY_BOOST
-                + " for first 10 turns, then burnout risk +"
-                + CAFFEINE_EXTRA_BURNOUT_RISK
-                + ".\n";
-        }
-        else
-        {
-            text = text + "- Caffeine Mode: off.\n";
-        }
-
-        text = text + "\n";
-
-        for (int i = 0; i < numberOfTypists; i++)
-        {
-            String style = (String) styleBoxes[i].getSelectedItem();
-            String keyboard = (String) keyboardBoxes[i].getSelectedItem();
-
-            int finalDelay = BASE_TYPING_DELAY + getKeyboardDelayModifier(keyboard);
-
-            if (finalDelay < 120)
-            {
-                finalDelay = 120;
-            }
-
-            text = text + "Typist " + (i + 1) + ":\n";
-
-            text = text + "- Style " + style
-                + ": accuracy " + signed(getStyleAccuracyModifier(style))
-                + ", speed no direct change"
-                + ", burnout risk x" + getStyleBurnoutMultiplier(style)
-                + ".\n";
-
-            text = text + "- Keyboard " + keyboard
-                + ": accuracy " + signed(getKeyboardAccuracyModifier(keyboard))
-                + ", speed delay " + signed(getKeyboardDelayModifier(keyboard)) + "ms"
-                + " (final delay " + finalDelay + "ms)"
-                + ", burnout risk x" + getKeyboardBurnoutMultiplier(keyboard)
-                + ".\n";
-
-            if (wristSupportBoxes[i].isSelected())
-            {
-                text = text + "- Wrist Support: burnout duration reduced by 1 turn.\n";
-            }
-
-            if (energyDrinkBoxes[i].isSelected())
-            {
-                text = text + "- Energy Drink: accuracy/typing chance +"
-                    + ENERGY_DRINK_FIRST_HALF_BOOST
-                    + " in first half, -"
-                    + ENERGY_DRINK_SECOND_HALF_PENALTY
-                    + " in second half.\n";
-            }
-
-            if (headphonesBoxes[i].isSelected())
-            {
-                text = text + "- Noise-Cancelling Headphones: mistype chance reduced by "
-                    + HEADPHONES_MISTYPE_REDUCTION
-                    + ".\n";
-            }
-
-            if (!wristSupportBoxes[i].isSelected()
-                && !energyDrinkBoxes[i].isSelected()
-                && !headphonesBoxes[i].isSelected())
-            {
-                text = text + "- Accessories: none selected.\n";
-            }
-
-            text = text + "\n";
-        }
-
-        impactArea.setText(text);
-        impactArea.setCaretPosition(0);
-    }
-
-    private String signed(double value)
-    {
-        if (value >= 0)
-        {
-            return "+" + value;
-        }
-        else
-        {
-            return "" + value;
-        }
-    }
-
-    private String signed(int value)
-    {
-        if (value >= 0)
-        {
-            return "+" + value;
-        }
-        else
-        {
-            return "" + value;
-        }
-    }
-
-    private void updateTypistRowVisibility()
-    {
-        if (seatCountBox == null || typistRows == null)
-        {
-            return;
-        }
-
-        int numberOfTypists = (Integer) seatCountBox.getSelectedItem();
-
-        for (int i = 0; i < MAX_TYPISTS; i++)
-        {
-            typistRows[i].setVisible(i < numberOfTypists);
-        }
-
-        typistConfigPanel.revalidate();
-        typistConfigPanel.repaint();
-    }
-
     private void createRacePanel()
     {
+        JPanel centrePanel = new JPanel();
+        centrePanel.setLayout(new BorderLayout());
+
         racePanel = new JPanel();
-        racePanel.setLayout(new GridLayout(1, 1));
+        racePanel.setLayout(new BoxLayout(racePanel, BoxLayout.Y_AXIS));
         racePanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        passageLabel = new JLabel("Passage will appear here.", SwingConstants.CENTER);
-        passageLabel.setFont(new Font("Monospaced", Font.PLAIN, 18));
+        passageLabel = new JLabel("Passage will appear here.", SwingConstants.LEFT);
+        passageLabel.setFont(new Font("Monospaced", Font.PLAIN, 13));
+        passageLabel.setVerticalAlignment(SwingConstants.TOP);
 
         racePanel.add(passageLabel);
 
-        add(racePanel, BorderLayout.CENTER);
+        JScrollPane raceScrollPane = new JScrollPane(racePanel);
+        raceScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        raceScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+
+        JTabbedPane tabs = new JTabbedPane();
+
+        resultsArea = new JTextArea(10, 40);
+        resultsArea.setEditable(false);
+        resultsArea.setText("Race results will appear here after the first race.");
+
+        historyArea = new JTextArea(10, 40);
+        historyArea.setEditable(false);
+        historyArea.setText("Historical data will appear here after races are completed.");
+
+        JPanel comparisonPanel = new JPanel();
+        comparisonPanel.setLayout(new BorderLayout());
+
+        JPanel comparisonTopPanel = new JPanel();
+        comparisonTopPanel.add(new JLabel("Compare metric:"));
+
+        comparisonMetricBox = new JComboBox<String>();
+        comparisonMetricBox.addItem("WPM");
+        comparisonMetricBox.addItem("Accuracy Percentage");
+        comparisonMetricBox.addItem("Burnout Count");
+        comparisonMetricBox.addItem("Accuracy Change");
+        comparisonMetricBox.addItem("Race Points");
+        comparisonMetricBox.addItem("Cumulative Points");
+
+        JButton updateComparisonButton = new JButton("Update Comparison");
+        updateComparisonButton.addActionListener((ActionEvent e) -> updateComparisonArea());
+
+        comparisonTopPanel.add(comparisonMetricBox);
+        comparisonTopPanel.add(updateComparisonButton);
+
+        comparisonArea = new JTextArea(10, 40);
+        comparisonArea.setEditable(false);
+        comparisonArea.setText("Comparison view will appear here after a race.");
+
+        comparisonPanel.add(comparisonTopPanel, BorderLayout.NORTH);
+        comparisonPanel.add(new JScrollPane(comparisonArea), BorderLayout.CENTER);
+
+        leaderboardArea = new JTextArea(10, 40);
+        leaderboardArea.setEditable(false);
+        leaderboardArea.setText("Leaderboard will appear here after races are completed.");
+
+        tabs.add("Results", new JScrollPane(resultsArea));
+        tabs.add("History", new JScrollPane(historyArea));
+        tabs.add("Comparison", comparisonPanel);
+        tabs.add("Leaderboard", new JScrollPane(leaderboardArea));
+
+        centrePanel.add(raceScrollPane, BorderLayout.CENTER);
+        centrePanel.add(tabs, BorderLayout.SOUTH);
+
+        add(centrePanel, BorderLayout.CENTER);
     }
 
     private JLabel createLaneLabel()
     {
         JLabel label = new JLabel("", SwingConstants.LEFT);
-        label.setFont(new Font("Monospaced", Font.PLAIN, 18));
-        label.setBorder(BorderFactory.createEmptyBorder(10, 30, 10, 30));
+        label.setFont(new Font("Monospaced", Font.PLAIN, 13));
+        label.setVerticalAlignment(SwingConstants.TOP);
+        label.setBorder(BorderFactory.createEmptyBorder(8, 40, 8, 40));
         return label;
     }
 
@@ -515,7 +401,7 @@ public class TypingRaceGUI extends JFrame
 
     private void startRace()
     {
-        passage = getSelectedPassage();
+        String passage = getSelectedPassage();
 
         if (passage == null || passage.length() == 0)
         {
@@ -523,23 +409,17 @@ public class TypingRaceGUI extends JFrame
             return;
         }
 
-        passageLength = passage.length();
-
         int numberOfTypists = (Integer) seatCountBox.getSelectedItem();
 
-        createTypists(numberOfTypists);
-        applyStartingModifiers();
+        TypingRaceLogic.TypistSettings[] settings = getTypistSettings(numberOfTypists);
+
+        logic.startRace(
+            passage,
+            settings,
+            nightShiftBox.isSelected()
+        );
+
         createLaneLabels(numberOfTypists);
-
-        finished = false;
-        winner = null;
-        turnCounter = 0;
-
-        for (int i = 0; i < typists.length; i++)
-        {
-            typists[i].resetToStart();
-            typistCooldowns[i] = 0;
-        }
 
         setConfigurationEnabled(false);
 
@@ -547,229 +427,306 @@ public class TypingRaceGUI extends JFrame
 
         updateGUI();
 
-        raceTimer = new Timer(TIMER_TICK, (ActionEvent e) -> raceStep());
+        raceTimer = new Timer(TypingRaceLogic.TIMER_TICK, (ActionEvent e) -> raceStep());
         raceTimer.start();
     }
 
-    private void createTypists(int numberOfTypists)
+    private TypingRaceLogic.TypistSettings[] getTypistSettings(int numberOfTypists)
     {
-        typists = new Typist[numberOfTypists];
-        typistColours = new String[numberOfTypists];
-
-        typistDelays = new int[numberOfTypists];
-        typistCooldowns = new int[numberOfTypists];
-        typistBurnoutMultipliers = new double[numberOfTypists];
-        typistBurnoutDurations = new int[numberOfTypists];
-
-        String[] names = {
-            "TURBOFINGERS",
-            "HUNT_N_PECK",
-            "KEYBOARD_KING",
-            "TYPE_MASTER",
-            "FAST_HANDS",
-            "SPACEBAR_PRO"
-        };
-
-        double baseAccuracy = 0.75;
+        TypingRaceLogic.TypistSettings[] settings =
+            new TypingRaceLogic.TypistSettings[numberOfTypists];
 
         for (int i = 0; i < numberOfTypists; i++)
         {
-            String symbol = symbolFields[i].getText().trim();
+            settings[i] = new TypingRaceLogic.TypistSettings(
+                (String) styleBoxes[i].getSelectedItem(),
+                (String) keyboardBoxes[i].getSelectedItem(),
+                symbolFields[i].getText(),
+                (String) colourBoxes[i].getSelectedItem(),
+                wristSupportBoxes[i].isSelected(),
+                energyDrinkBoxes[i].isSelected(),
+                headphonesBoxes[i].isSelected()
+            );
+        }
 
-            if (symbol.length() == 0)
+        return settings;
+    }
+
+    private void raceStep()
+    {
+        int numberOfTypists = logic.getTypists().length;
+
+        TypingRaceLogic.TypistSettings[] settings = getTypistSettings(numberOfTypists);
+
+        logic.raceStep(
+            settings,
+            autocorrectBox.isSelected(),
+            caffeineBox.isSelected()
+        );
+
+        updateGUI();
+
+        if (logic.isFinished())
+        {
+            raceTimer.stop();
+
+            resultsArea.setText(logic.getResultsText());
+            resultsArea.setCaretPosition(0);
+
+            historyArea.setText(logic.getHistoryText());
+            historyArea.setCaretPosition(0);
+
+            updateComparisonArea();
+
+            leaderboardArea.setText(logic.getLeaderboardText());
+            leaderboardArea.setCaretPosition(0);
+
+            setConfigurationEnabled(true);
+
+            statusLabel.setText(
+                "Winner: " + logic.getWinner().getName()
+                + " | Final accuracy: " + logic.roundAccuracy(logic.getWinner().getAccuracy())
+            );
+        }
+    }
+
+    private void updateComparisonArea()
+    {
+        if (comparisonArea == null || comparisonMetricBox == null)
+        {
+            return;
+        }
+
+        String metric = (String) comparisonMetricBox.getSelectedItem();
+
+        comparisonArea.setText(logic.getComparisonText(metric));
+        comparisonArea.setCaretPosition(0);
+    }
+
+    private void updateImpactArea()
+    {
+        if (impactArea == null || seatCountBox == null || styleBoxes == null)
+        {
+            return;
+        }
+
+        int numberOfTypists = (Integer) seatCountBox.getSelectedItem();
+
+        TypingRaceLogic.TypistSettings[] settings = getTypistSettings(numberOfTypists);
+
+        impactArea.setText(
+            logic.getImpactText(
+                settings,
+                nightShiftBox != null && nightShiftBox.isSelected(),
+                autocorrectBox != null && autocorrectBox.isSelected(),
+                caffeineBox != null && caffeineBox.isSelected()
+            )
+        );
+
+        impactArea.setCaretPosition(0);
+    }
+
+    private void updateTypistRowVisibility()
+    {
+        if (seatCountBox == null || typistRows == null)
+        {
+            return;
+        }
+
+        int numberOfTypists = (Integer) seatCountBox.getSelectedItem();
+
+        for (int i = 0; i < TypingRaceLogic.MAX_TYPISTS; i++)
+        {
+            typistRows[i].setVisible(i < numberOfTypists);
+        }
+
+        typistConfigPanel.revalidate();
+        typistConfigPanel.repaint();
+    }
+
+    private int getAdaptiveFontSize()
+    {
+        String passage = logic.getPassage();
+
+        if (passage == null)
+        {
+            return 13;
+        }
+
+        int length = passage.length();
+
+        if (length <= 40)
+        {
+            return 15;
+        }
+        else if (length <= 90)
+        {
+            return 13;
+        }
+        else if (length <= 160)
+        {
+            return 11;
+        }
+        else
+        {
+            return 10;
+        }
+    }
+
+    private int getCharactersPerLine()
+    {
+        int fontSize = getAdaptiveFontSize();
+
+        int availableWidth = racePanel.getWidth() - 180;
+
+        if (availableWidth < 300)
+        {
+            availableWidth = 300;
+        }
+
+        int approximateCharacterWidth = fontSize;
+
+        int charsPerLine = availableWidth / approximateCharacterWidth;
+
+        if (charsPerLine < 35)
+        {
+            charsPerLine = 35;
+        }
+
+        if (charsPerLine > 65)
+        {
+            charsPerLine = 65;
+        }
+
+        return charsPerLine;
+    }
+
+    private String createWrappedPassageHTML(String text)
+    {
+        int charsPerLine = getCharactersPerLine();
+
+        String html = "";
+
+        for (int i = 0; i < text.length(); i++)
+        {
+            if (i > 0 && i % charsPerLine == 0)
             {
-                symbol = "" + (i + 1);
+                html = html + "<br>";
             }
 
-            double accuracy = baseAccuracy;
+            html = html + escapeHTML("" + text.charAt(i));
+        }
 
-            String style = (String) styleBoxes[i].getSelectedItem();
-            String keyboard = (String) keyboardBoxes[i].getSelectedItem();
+        return html;
+    }
 
-            accuracy = accuracy + getStyleAccuracyModifier(style);
-            accuracy = accuracy + getKeyboardAccuracyModifier(keyboard);
+    private void updateGUI()
+    {
+        int fontSize = getAdaptiveFontSize();
 
-            int delay = BASE_TYPING_DELAY;
-            delay = delay + getKeyboardDelayModifier(keyboard);
+        String passage = logic.getPassage();
 
-            if (delay < 120)
+        passageLabel.setText(
+            "<html>"
+            + "<span style='font-family:monospace; font-size:" + fontSize + "px;'>"
+            + "<b>Passage:</b><br>"
+            + createWrappedPassageHTML(passage)
+            + "</span>"
+            + "</html>"
+        );
+
+        Typist[] typists = logic.getTypists();
+
+        for (int i = 0; i < typists.length; i++)
+        {
+            laneLabels[i].setText(createLaneHTML(typists[i], i));
+        }
+    }
+
+    private String createLaneHTML(Typist typist, int typistIndex)
+    {
+        int passageLength = logic.getPassageLength();
+        String passage = logic.getPassage();
+        String[] typistColours = logic.getTypistColours();
+
+        int progress = typist.getProgress();
+
+        if (progress > passageLength)
+        {
+            progress = passageLength;
+        }
+
+        String burnoutText = "";
+
+        if (typist.isBurntOut())
+        {
+            burnoutText = " BURNT OUT (" + typist.getBurnoutTurnsRemaining() + " turns)";
+        }
+
+        int fontSize = getAdaptiveFontSize();
+        int charsPerLine = getCharactersPerLine();
+
+        String html = "";
+
+        html = html
+            + "<html>"
+            + "<span style='font-family:monospace; font-size:" + fontSize + "px;'>"
+            + "<b>" + typist.getName() + "</b>"
+            + " | Accuracy: " + logic.roundAccuracy(typist.getAccuracy())
+            + burnoutText
+            + "<br>";
+
+        for (int i = 0; i < passage.length(); i++)
+        {
+            if (i > 0 && i % charsPerLine == 0)
             {
-                delay = 120;
+                html = html + "<br>";
             }
 
-            typistDelays[i] = delay;
-            typistCooldowns[i] = 0;
-
-            typistBurnoutMultipliers[i] = getStyleBurnoutMultiplier(style)
-                * getKeyboardBurnoutMultiplier(keyboard);
-
-            typistBurnoutDurations[i] = BURNOUT_DURATION;
-
-            if (wristSupportBoxes[i].isSelected())
+            if (i == progress)
             {
-                typistBurnoutDurations[i] = typistBurnoutDurations[i] - 1;
-
-                if (typistBurnoutDurations[i] < 1)
-                {
-                    typistBurnoutDurations[i] = 1;
-                }
+                html = html
+                    + "<span style='background-color:#ffd966;'>"
+                    + escapeHTML(typist.getSymbol())
+                    + "</span>";
             }
 
-            typistColours[i] = getColourHex((String) colourBoxes[i].getSelectedItem());
-
-            typists[i] = new Typist(symbol, names[i], accuracy);
-        }
-    }
-
-    private double getStyleAccuracyModifier(String style)
-    {
-        if (style.equals("Touch Typist"))
-        {
-            return 0.10;
-        }
-        else if (style.equals("Hunt & Peck"))
-        {
-            return -0.10;
-        }
-        else if (style.equals("Phone Thumbs"))
-        {
-            return -0.05;
-        }
-        else
-        {
-            return 0.05;
-        }
-    }
-
-    private double getStyleBurnoutMultiplier(String style)
-    {
-        if (style.equals("Touch Typist"))
-        {
-            return 1.10;
-        }
-        else if (style.equals("Hunt & Peck"))
-        {
-            return 0.80;
-        }
-        else if (style.equals("Phone Thumbs"))
-        {
-            return 0.90;
-        }
-        else
-        {
-            return 1.30;
-        }
-    }
-
-    private double getKeyboardAccuracyModifier(String keyboard)
-    {
-        if (keyboard.equals("Mechanical"))
-        {
-            return 0.05;
-        }
-        else if (keyboard.equals("Membrane"))
-        {
-            return 0.00;
-        }
-        else if (keyboard.equals("Touchscreen"))
-        {
-            return -0.08;
-        }
-        else
-        {
-            return -0.03;
-        }
-    }
-
-    private int getKeyboardDelayModifier(String keyboard)
-    {
-        if (keyboard.equals("Mechanical"))
-        {
-            return -90;
-        }
-        else if (keyboard.equals("Membrane"))
-        {
-            return 40;
-        }
-        else if (keyboard.equals("Touchscreen"))
-        {
-            return 120;
-        }
-        else
-        {
-            return -180;
-        }
-    }
-
-    private double getKeyboardBurnoutMultiplier(String keyboard)
-    {
-        if (keyboard.equals("Mechanical"))
-        {
-            return 1.00;
-        }
-        else if (keyboard.equals("Membrane"))
-        {
-            return 0.95;
-        }
-        else if (keyboard.equals("Touchscreen"))
-        {
-            return 0.90;
-        }
-        else
-        {
-            return 1.20;
-        }
-    }
-
-    private String getColourHex(String colour)
-    {
-        if (colour.equals("Green"))
-        {
-            return "#b7f7b7";
-        }
-        else if (colour.equals("Blue"))
-        {
-            return "#b7d7ff";
-        }
-        else if (colour.equals("Orange"))
-        {
-            return "#ffd59e";
-        }
-        else if (colour.equals("Pink"))
-        {
-            return "#ffb7d5";
-        }
-        else if (colour.equals("Purple"))
-        {
-            return "#d7b7ff";
-        }
-        else
-        {
-            return "#b7f7f7";
-        }
-    }
-
-    private void applyStartingModifiers()
-    {
-        if (nightShiftBox.isSelected())
-        {
-            for (int i = 0; i < typists.length; i++)
+            if (i < progress)
             {
-                typists[i].setAccuracy(
-                    typists[i].getAccuracy() - NIGHT_SHIFT_ACCURACY_PENALTY
-                );
+                html = html
+                    + "<span style='background-color:" + typistColours[typistIndex] + ";'>"
+                    + escapeHTML("" + passage.charAt(i))
+                    + "</span>";
+            }
+            else
+            {
+                html = html + escapeHTML("" + passage.charAt(i));
             }
         }
+
+        if (progress >= passage.length())
+        {
+            html = html
+                + "<span style='background-color:#ffd966;'>"
+                + escapeHTML(typist.getSymbol())
+                + "</span>";
+        }
+
+        html = html + "</span></html>";
+
+        return html;
     }
 
     private void createLaneLabels(int numberOfTypists)
     {
         racePanel.removeAll();
 
-        racePanel.setLayout(new GridLayout(numberOfTypists + 1, 1));
+        racePanel.setLayout(new BoxLayout(racePanel, BoxLayout.Y_AXIS));
 
-        passageLabel = new JLabel("", SwingConstants.CENTER);
-        passageLabel.setFont(new Font("Monospaced", Font.PLAIN, 18));
+        passageLabel = new JLabel("", SwingConstants.LEFT);
+        passageLabel.setFont(new Font("Monospaced", Font.PLAIN, 13));
+        passageLabel.setVerticalAlignment(SwingConstants.TOP);
+        passageLabel.setBorder(BorderFactory.createEmptyBorder(8, 40, 12, 40));
 
         racePanel.add(passageLabel);
 
@@ -785,185 +742,6 @@ public class TypingRaceGUI extends JFrame
         racePanel.repaint();
     }
 
-    private void raceStep()
-    {
-        if (finished)
-        {
-            return;
-        }
-
-        turnCounter = turnCounter + 1;
-
-        for (int i = 0; i < typists.length; i++)
-        {
-            typistCooldowns[i] = typistCooldowns[i] - TIMER_TICK;
-
-            if (typistCooldowns[i] <= 0)
-            {
-                advanceTypist(typists[i], i);
-                typistCooldowns[i] = typistDelays[i];
-            }
-        }
-
-        updateGUI();
-
-        for (int i = 0; i < typists.length; i++)
-        {
-            if (raceFinishedBy(typists[i]))
-            {
-                finished = true;
-                winner = typists[i];
-                break;
-            }
-        }
-
-        if (finished)
-        {
-            raceTimer.stop();
-
-            setConfigurationEnabled(true);
-
-            statusLabel.setText(
-                "Winner: " + winner.getName()
-                + " | Final accuracy: " + roundAccuracy(winner.getAccuracy())
-            );
-        }
-    }
-
-    private void advanceTypist(Typist theTypist, int typistIndex)
-    {
-        if (theTypist.isBurntOut())
-        {
-            theTypist.recoverFromBurnout();
-            theTypist.setAccuracy(theTypist.getAccuracy() - 0.01);
-            return;
-        }
-
-        double typingChance = theTypist.getAccuracy();
-
-        if (caffeineBox.isSelected() && turnCounter <= 10)
-        {
-            typingChance = typingChance + CAFFEINE_ACCURACY_BOOST;
-        }
-
-        if (energyDrinkBoxes[typistIndex].isSelected())
-        {
-            if (theTypist.getProgress() < passageLength / 2)
-            {
-                typingChance = typingChance + ENERGY_DRINK_FIRST_HALF_BOOST;
-            }
-            else
-            {
-                typingChance = typingChance - ENERGY_DRINK_SECOND_HALF_PENALTY;
-            }
-        }
-
-        if (headphonesBoxes[typistIndex].isSelected())
-        {
-            typingChance = typingChance + HEADPHONES_MISTYPE_REDUCTION;
-        }
-
-        if (typingChance > 1.0)
-        {
-            typingChance = 1.0;
-        }
-
-        if (typingChance < 0.0)
-        {
-            typingChance = 0.0;
-        }
-
-        int slideBackAmount = SLIDE_BACK_AMOUNT;
-
-        if (autocorrectBox.isSelected())
-        {
-            slideBackAmount = SLIDE_BACK_AMOUNT / 2;
-
-            if (slideBackAmount < 1)
-            {
-                slideBackAmount = 1;
-            }
-        }
-
-        if (Math.random() < typingChance)
-        {
-            theTypist.typeCharacter();
-            theTypist.setAccuracy(theTypist.getAccuracy() + 0.001);
-        }
-        else
-        {
-            theTypist.slideBack(slideBackAmount);
-            theTypist.setAccuracy(theTypist.getAccuracy() - 0.005);
-        }
-
-        double burnoutRisk = 0.05
-            * theTypist.getAccuracy()
-            * theTypist.getAccuracy()
-            * typistBurnoutMultipliers[typistIndex];
-
-        if (caffeineBox.isSelected() && turnCounter > 10)
-        {
-            burnoutRisk = burnoutRisk + CAFFEINE_EXTRA_BURNOUT_RISK;
-        }
-
-        if (Math.random() < burnoutRisk)
-        {
-            theTypist.burnOut(typistBurnoutDurations[typistIndex]);
-            theTypist.setAccuracy(theTypist.getAccuracy() - 0.01);
-        }
-    }
-
-    private boolean raceFinishedBy(Typist theTypist)
-    {
-        return theTypist.getProgress() >= passageLength;
-    }
-
-    private void updateGUI()
-    {
-        passageLabel.setText(
-            "<html><b>Passage:</b> " + escapeHTML(passage) + "</html>"
-        );
-
-        for (int i = 0; i < typists.length; i++)
-        {
-            laneLabels[i].setText(createLaneHTML(typists[i], i));
-        }
-    }
-
-    private String createLaneHTML(Typist typist, int typistIndex)
-    {
-        int progress = typist.getProgress();
-
-        if (progress > passageLength)
-        {
-            progress = passageLength;
-        }
-
-        String completed = passage.substring(0, progress);
-        String remaining = passage.substring(progress);
-
-        String burnoutText = "";
-
-        if (typist.isBurntOut())
-        {
-            burnoutText = " BURNT OUT (" + typist.getBurnoutTurnsRemaining() + " turns)";
-        }
-
-        return "<html>"
-            + "<b>" + typist.getName() + "</b>"
-            + " | Accuracy: " + roundAccuracy(typist.getAccuracy())
-            + burnoutText
-            + "<br>"
-            + "<span style='background-color:" + typistColours[typistIndex] + ";'>"
-            + escapeHTML(completed)
-            + "</span>"
-            + "<span style='background-color:#ffd966;'>"
-            + escapeHTML(typist.getSymbol())
-            + "</span>"
-            + escapeHTML(remaining)
-            + "</html>";
-    }
-
     private void setConfigurationEnabled(boolean enabled)
     {
         startButton.setEnabled(enabled);
@@ -974,7 +752,7 @@ public class TypingRaceGUI extends JFrame
         caffeineBox.setEnabled(enabled);
         nightShiftBox.setEnabled(enabled);
 
-        for (int i = 0; i < MAX_TYPISTS; i++)
+        for (int i = 0; i < TypingRaceLogic.MAX_TYPISTS; i++)
         {
             styleBoxes[i].setEnabled(enabled);
             keyboardBoxes[i].setEnabled(enabled);
@@ -986,18 +764,12 @@ public class TypingRaceGUI extends JFrame
         }
     }
 
-    private double roundAccuracy(double accuracy)
-    {
-        return Math.round(accuracy * 1000.0) / 1000.0;
-    }
-
     private String escapeHTML(String text)
     {
         return text
             .replace("&", "&amp;")
             .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace(" ", "&nbsp;");
+            .replace(">", "&gt;");
     }
 
     public static void main(String[] args)
