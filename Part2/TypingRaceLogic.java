@@ -36,6 +36,9 @@ public class TypingRaceLogic
     private Typist[] typists;
     private String[] typistColours;
 
+    private TypistSettings[] typistSettings;
+    private GlobalSettings globalSettings;
+
     private boolean finished;
     private Typist winner;
 
@@ -94,6 +97,26 @@ public class TypingRaceLogic
         leaderboardText = "Leaderboard will appear here after races are completed.";
     }
 
+    /**
+     * Settings that affect the whole race.
+     */
+    public static class GlobalSettings
+    {
+        boolean nightShift;
+        boolean autocorrect;
+        boolean caffeine;
+
+        public GlobalSettings(boolean nightShift, boolean autocorrect, boolean caffeine)
+        {
+            this.nightShift = nightShift;
+            this.autocorrect = autocorrect;
+            this.caffeine = caffeine;
+        }
+    }
+
+    /**
+     * Settings that belong to one typist.
+     */
     public static class TypistSettings
     {
         String style;
@@ -148,14 +171,17 @@ public class TypingRaceLogic
         }
     }
 
-    public void startRace(String passage, TypistSettings[] settings, boolean nightShiftOn)
+    public void startRace(String passage, TypistSettings[] typistSettings, GlobalSettings globalSettings)
     {
         this.passage = passage;
-        passageLength = passage.length();
+        this.passageLength = passage.length();
 
-        createTypists(settings);
-        applyStartingModifiers(nightShiftOn);
-        initialisePerformanceTracking(settings.length);
+        this.typistSettings = typistSettings;
+        this.globalSettings = globalSettings;
+
+        createTypists(typistSettings);
+        applyStartingModifiers();
+        initialisePerformanceTracking(typistSettings.length);
 
         finished = false;
         winner = null;
@@ -260,7 +286,7 @@ public class TypingRaceLogic
         }
     }
 
-    public void raceStep(TypistSettings[] settings, boolean autocorrectOn, boolean caffeineOn)
+    public void raceStep()
     {
         if (finished)
         {
@@ -275,7 +301,7 @@ public class TypingRaceLogic
 
             if (typistCooldowns[i] <= 0)
             {
-                advanceTypist(typists[i], i, settings[i], autocorrectOn, caffeineOn);
+                advanceTypist(typists[i], i);
                 typistCooldowns[i] = typistDelays[i];
             }
         }
@@ -297,9 +323,10 @@ public class TypingRaceLogic
         }
     }
 
-    private void advanceTypist(Typist theTypist, int typistIndex,
-                               TypistSettings settings, boolean autocorrectOn, boolean caffeineOn)
+    private void advanceTypist(Typist theTypist, int typistIndex)
     {
+        TypistSettings settings = typistSettings[typistIndex];
+
         if (theTypist.isBurntOut())
         {
             theTypist.recoverFromBurnout();
@@ -309,7 +336,7 @@ public class TypingRaceLogic
 
         double typingChance = theTypist.getAccuracy();
 
-        if (caffeineOn && turnCounter <= 10)
+        if (globalSettings.caffeine && turnCounter <= 10)
         {
             typingChance = typingChance + CAFFEINE_ACCURACY_BOOST;
         }
@@ -339,7 +366,7 @@ public class TypingRaceLogic
 
         int slideBackAmount = SLIDE_BACK_AMOUNT;
 
-        if (autocorrectOn)
+        if (globalSettings.autocorrect)
         {
             slideBackAmount = SLIDE_BACK_AMOUNT / 2;
 
@@ -368,7 +395,7 @@ public class TypingRaceLogic
             * theTypist.getAccuracy()
             * typistBurnoutMultipliers[typistIndex];
 
-        if (caffeineOn && turnCounter > 10)
+        if (globalSettings.caffeine && turnCounter > 10)
         {
             burnoutRisk = burnoutRisk + CAFFEINE_EXTRA_BURNOUT_RISK;
         }
@@ -738,16 +765,13 @@ public class TypingRaceLogic
         return indexes;
     }
 
-    public String getImpactText(TypistSettings[] settings,
-                                boolean nightShiftOn,
-                                boolean autocorrectOn,
-                                boolean caffeineOn)
+    public String getImpactText(TypistSettings[] settings, GlobalSettings globalSettings)
     {
         String text = "";
 
         text = text + "Global Modifiers:\n";
 
-        if (nightShiftOn)
+        if (globalSettings.nightShift)
         {
             text = text + "- Night Shift: accuracy "
                 + signed(-NIGHT_SHIFT_ACCURACY_PENALTY)
@@ -758,7 +782,7 @@ public class TypingRaceLogic
             text = text + "- Night Shift: off.\n";
         }
 
-        if (autocorrectOn)
+        if (globalSettings.autocorrect)
         {
             text = text + "- Autocorrect: slide-back penalty is halved after a mistype.\n";
         }
@@ -767,7 +791,7 @@ public class TypingRaceLogic
             text = text + "- Autocorrect: off.\n";
         }
 
-        if (caffeineOn)
+        if (globalSettings.caffeine)
         {
             text = text + "- Caffeine Mode: accuracy/typing chance +"
                 + CAFFEINE_ACCURACY_BOOST
@@ -1012,9 +1036,9 @@ public class TypingRaceLogic
         }
     }
 
-    private void applyStartingModifiers(boolean nightShiftOn)
+    private void applyStartingModifiers()
     {
-        if (nightShiftOn)
+        if (globalSettings.nightShift)
         {
             for (int i = 0; i < typists.length; i++)
             {

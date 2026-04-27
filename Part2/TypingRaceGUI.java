@@ -1,7 +1,6 @@
 package Part2;
 
 import javax.swing.*;
-
 import java.awt.*;
 import java.awt.event.ActionEvent;
 
@@ -411,12 +410,13 @@ public class TypingRaceGUI extends JFrame
 
         int numberOfTypists = (Integer) seatCountBox.getSelectedItem();
 
-        TypingRaceLogic.TypistSettings[] settings = getTypistSettings(numberOfTypists);
+        TypingRaceLogic.TypistSettings[] typistSettings = getTypistSettings(numberOfTypists);
+        TypingRaceLogic.GlobalSettings globalSettings = getGlobalSettings();
 
         logic.startRace(
             passage,
-            settings,
-            nightShiftBox.isSelected()
+            typistSettings,
+            globalSettings
         );
 
         createLaneLabels(numberOfTypists);
@@ -452,17 +452,18 @@ public class TypingRaceGUI extends JFrame
         return settings;
     }
 
-    private void raceStep()
+    private TypingRaceLogic.GlobalSettings getGlobalSettings()
     {
-        int numberOfTypists = logic.getTypists().length;
-
-        TypingRaceLogic.TypistSettings[] settings = getTypistSettings(numberOfTypists);
-
-        logic.raceStep(
-            settings,
+        return new TypingRaceLogic.GlobalSettings(
+            nightShiftBox.isSelected(),
             autocorrectBox.isSelected(),
             caffeineBox.isSelected()
         );
+    }
+
+    private void raceStep()
+    {
+        logic.raceStep();
 
         updateGUI();
 
@@ -512,14 +513,13 @@ public class TypingRaceGUI extends JFrame
 
         int numberOfTypists = (Integer) seatCountBox.getSelectedItem();
 
-        TypingRaceLogic.TypistSettings[] settings = getTypistSettings(numberOfTypists);
+        TypingRaceLogic.TypistSettings[] typistSettings = getTypistSettings(numberOfTypists);
+        TypingRaceLogic.GlobalSettings globalSettings = getGlobalSettings();
 
         impactArea.setText(
             logic.getImpactText(
-                settings,
-                nightShiftBox != null && nightShiftBox.isSelected(),
-                autocorrectBox != null && autocorrectBox.isSelected(),
-                caffeineBox != null && caffeineBox.isSelected()
+                typistSettings,
+                globalSettings
             )
         );
 
