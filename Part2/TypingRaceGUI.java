@@ -46,25 +46,42 @@ public class TypingRaceGUI extends JFrame
     private JTextField[] symbolFields;
     private JPanel[] typistRows;
 
+    private JCheckBox[] wristSupportBoxes;
+    private JCheckBox[] energyDrinkBoxes;
+    private JCheckBox[] headphonesBoxes;
+
+    private JTextArea impactArea;
+
     private String[] typistColours;
-    private double[] typistSpeedModifiers;
+
+    private int[] typistDelays;
+    private int[] typistCooldowns;
+    private int[] typistBurnoutDurations;
+
     private double[] typistBurnoutMultipliers;
 
     private Timer raceTimer;
 
     private static final int MAX_TYPISTS = 6;
 
+    private static final int TIMER_TICK = 50;
+    private static final int BASE_TYPING_DELAY = 350;
+
     private static final int SLIDE_BACK_AMOUNT = 2;
     private static final int BURNOUT_DURATION = 3;
 
-    private static final double CAFFEINE_SPEED_BOOST = 0.15;
+    private static final double CAFFEINE_ACCURACY_BOOST = 0.15;
     private static final double CAFFEINE_EXTRA_BURNOUT_RISK = 0.03;
     private static final double NIGHT_SHIFT_ACCURACY_PENALTY = 0.10;
+
+    private static final double ENERGY_DRINK_FIRST_HALF_BOOST = 0.08;
+    private static final double ENERGY_DRINK_SECOND_HALF_PENALTY = 0.08;
+    private static final double HEADPHONES_MISTYPE_REDUCTION = 0.07;
 
     public TypingRaceGUI()
     {
         setTitle("Typing Race GUI");
-        setSize(1350, 850);
+        setSize(1400, 900);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
@@ -84,7 +101,7 @@ public class TypingRaceGUI extends JFrame
         titleLabel.setFont(new Font("Arial", Font.BOLD, 28));
 
         JLabel instructionLabel = new JLabel(
-            "Choose passage, typist count, style, keyboard, symbol, colour, and modifiers.",
+            "Choose passage, typist count, style, keyboard, symbol, colour, modifiers, and accessories.",
             SwingConstants.CENTER
         );
 
@@ -150,7 +167,10 @@ public class TypingRaceGUI extends JFrame
         seatCountBox.addItem(5);
         seatCountBox.addItem(6);
 
-        seatCountBox.addActionListener((ActionEvent e) -> updateTypistRowVisibility());
+        seatCountBox.addActionListener((ActionEvent e) -> {
+            updateTypistRowVisibility();
+            updateImpactArea();
+        });
 
         seatPanel.add(seatCountBox);
 
@@ -162,20 +182,26 @@ public class TypingRaceGUI extends JFrame
         caffeineBox = new JCheckBox("Caffeine Mode");
         nightShiftBox = new JCheckBox("Night Shift");
 
+        autocorrectBox.addActionListener((ActionEvent e) -> updateImpactArea());
+        caffeineBox.addActionListener((ActionEvent e) -> updateImpactArea());
+        nightShiftBox.addActionListener((ActionEvent e) -> updateImpactArea());
+
         modifierPanel.add(autocorrectBox);
         modifierPanel.add(caffeineBox);
         modifierPanel.add(nightShiftBox);
 
         createTypistConfigPanel();
+        createImpactPanel();
 
         settingsPanel.add(passagePanel);
         settingsPanel.add(customPanel);
         settingsPanel.add(seatPanel);
         settingsPanel.add(modifierPanel);
         settingsPanel.add(typistConfigPanel);
+        settingsPanel.add(impactArea);
 
         JScrollPane scrollPane = new JScrollPane(settingsPanel);
-        scrollPane.setPreferredSize(new Dimension(500, 650));
+        scrollPane.setPreferredSize(new Dimension(560, 700));
 
         JPanel startPanel = new JPanel();
         startPanel.setLayout(new GridLayout(2, 1));
@@ -208,12 +234,16 @@ public class TypingRaceGUI extends JFrame
         symbolFields = new JTextField[MAX_TYPISTS];
         typistRows = new JPanel[MAX_TYPISTS];
 
+        wristSupportBoxes = new JCheckBox[MAX_TYPISTS];
+        energyDrinkBoxes = new JCheckBox[MAX_TYPISTS];
+        headphonesBoxes = new JCheckBox[MAX_TYPISTS];
+
         String[] defaultSymbols = {"⌨", "🐢", "👑", "⚡", "🚀", "🎯"};
 
         for (int i = 0; i < MAX_TYPISTS; i++)
         {
             JPanel row = new JPanel();
-            row.setLayout(new GridLayout(4, 2));
+            row.setLayout(new GridLayout(7, 2));
             row.setBorder(BorderFactory.createTitledBorder("Typist " + (i + 1)));
 
             styleBoxes[i] = new JComboBox<String>();
@@ -221,12 +251,14 @@ public class TypingRaceGUI extends JFrame
             styleBoxes[i].addItem("Hunt & Peck");
             styleBoxes[i].addItem("Phone Thumbs");
             styleBoxes[i].addItem("Voice-to-Text");
+            styleBoxes[i].addActionListener((ActionEvent e) -> updateImpactArea());
 
             keyboardBoxes[i] = new JComboBox<String>();
             keyboardBoxes[i].addItem("Mechanical");
             keyboardBoxes[i].addItem("Membrane");
             keyboardBoxes[i].addItem("Touchscreen");
             keyboardBoxes[i].addItem("Stenography");
+            keyboardBoxes[i].addActionListener((ActionEvent e) -> updateImpactArea());
 
             symbolFields[i] = new JTextField(defaultSymbols[i], 4);
 
@@ -237,6 +269,14 @@ public class TypingRaceGUI extends JFrame
             colourBoxes[i].addItem("Pink");
             colourBoxes[i].addItem("Purple");
             colourBoxes[i].addItem("Cyan");
+
+            wristSupportBoxes[i] = new JCheckBox("Wrist Support");
+            energyDrinkBoxes[i] = new JCheckBox("Energy Drink");
+            headphonesBoxes[i] = new JCheckBox("Noise-Cancelling Headphones");
+
+            wristSupportBoxes[i].addActionListener((ActionEvent e) -> updateImpactArea());
+            energyDrinkBoxes[i].addActionListener((ActionEvent e) -> updateImpactArea());
+            headphonesBoxes[i].addActionListener((ActionEvent e) -> updateImpactArea());
 
             row.add(new JLabel("Style:"));
             row.add(styleBoxes[i]);
@@ -250,11 +290,165 @@ public class TypingRaceGUI extends JFrame
             row.add(new JLabel("Colour:"));
             row.add(colourBoxes[i]);
 
+            row.add(new JLabel("Accessory 1:"));
+            row.add(wristSupportBoxes[i]);
+
+            row.add(new JLabel("Accessory 2:"));
+            row.add(energyDrinkBoxes[i]);
+
+            row.add(new JLabel("Accessory 3:"));
+            row.add(headphonesBoxes[i]);
+
             typistRows[i] = row;
             typistConfigPanel.add(row);
         }
 
         updateTypistRowVisibility();
+    }
+
+    private void createImpactPanel()
+    {
+        impactArea = new JTextArea(14, 35);
+        impactArea.setEditable(false);
+        impactArea.setLineWrap(true);
+        impactArea.setWrapStyleWord(true);
+        impactArea.setBorder(BorderFactory.createTitledBorder("Attribute Impact"));
+
+        updateImpactArea();
+    }
+
+    private void updateImpactArea()
+    {
+        if (impactArea == null || seatCountBox == null || styleBoxes == null)
+        {
+            return;
+        }
+
+        int numberOfTypists = (Integer) seatCountBox.getSelectedItem();
+
+        String text = "";
+
+        text = text + "Global Modifiers:\n";
+
+        if (nightShiftBox != null && nightShiftBox.isSelected())
+        {
+            text = text + "- Night Shift: accuracy "
+                + signed(-NIGHT_SHIFT_ACCURACY_PENALTY)
+                + " for every typist.\n";
+        }
+        else
+        {
+            text = text + "- Night Shift: off.\n";
+        }
+
+        if (autocorrectBox != null && autocorrectBox.isSelected())
+        {
+            text = text + "- Autocorrect: slide-back penalty is halved after a mistype.\n";
+        }
+        else
+        {
+            text = text + "- Autocorrect: off.\n";
+        }
+
+        if (caffeineBox != null && caffeineBox.isSelected())
+        {
+            text = text + "- Caffeine Mode: accuracy/typing chance +"
+                + CAFFEINE_ACCURACY_BOOST
+                + " for first 10 turns, then burnout risk +"
+                + CAFFEINE_EXTRA_BURNOUT_RISK
+                + ".\n";
+        }
+        else
+        {
+            text = text + "- Caffeine Mode: off.\n";
+        }
+
+        text = text + "\n";
+
+        for (int i = 0; i < numberOfTypists; i++)
+        {
+            String style = (String) styleBoxes[i].getSelectedItem();
+            String keyboard = (String) keyboardBoxes[i].getSelectedItem();
+
+            int finalDelay = BASE_TYPING_DELAY + getKeyboardDelayModifier(keyboard);
+
+            if (finalDelay < 120)
+            {
+                finalDelay = 120;
+            }
+
+            text = text + "Typist " + (i + 1) + ":\n";
+
+            text = text + "- Style " + style
+                + ": accuracy " + signed(getStyleAccuracyModifier(style))
+                + ", speed no direct change"
+                + ", burnout risk x" + getStyleBurnoutMultiplier(style)
+                + ".\n";
+
+            text = text + "- Keyboard " + keyboard
+                + ": accuracy " + signed(getKeyboardAccuracyModifier(keyboard))
+                + ", speed delay " + signed(getKeyboardDelayModifier(keyboard)) + "ms"
+                + " (final delay " + finalDelay + "ms)"
+                + ", burnout risk x" + getKeyboardBurnoutMultiplier(keyboard)
+                + ".\n";
+
+            if (wristSupportBoxes[i].isSelected())
+            {
+                text = text + "- Wrist Support: burnout duration reduced by 1 turn.\n";
+            }
+
+            if (energyDrinkBoxes[i].isSelected())
+            {
+                text = text + "- Energy Drink: accuracy/typing chance +"
+                    + ENERGY_DRINK_FIRST_HALF_BOOST
+                    + " in first half, -"
+                    + ENERGY_DRINK_SECOND_HALF_PENALTY
+                    + " in second half.\n";
+            }
+
+            if (headphonesBoxes[i].isSelected())
+            {
+                text = text + "- Noise-Cancelling Headphones: mistype chance reduced by "
+                    + HEADPHONES_MISTYPE_REDUCTION
+                    + ".\n";
+            }
+
+            if (!wristSupportBoxes[i].isSelected()
+                && !energyDrinkBoxes[i].isSelected()
+                && !headphonesBoxes[i].isSelected())
+            {
+                text = text + "- Accessories: none selected.\n";
+            }
+
+            text = text + "\n";
+        }
+
+        impactArea.setText(text);
+        impactArea.setCaretPosition(0);
+    }
+
+    private String signed(double value)
+    {
+        if (value >= 0)
+        {
+            return "+" + value;
+        }
+        else
+        {
+            return "" + value;
+        }
+    }
+
+    private String signed(int value)
+    {
+        if (value >= 0)
+        {
+            return "+" + value;
+        }
+        else
+        {
+            return "" + value;
+        }
     }
 
     private void updateTypistRowVisibility()
@@ -344,6 +538,7 @@ public class TypingRaceGUI extends JFrame
         for (int i = 0; i < typists.length; i++)
         {
             typists[i].resetToStart();
+            typistCooldowns[i] = 0;
         }
 
         setConfigurationEnabled(false);
@@ -352,7 +547,7 @@ public class TypingRaceGUI extends JFrame
 
         updateGUI();
 
-        raceTimer = new Timer(200, (ActionEvent e) -> raceStep());
+        raceTimer = new Timer(TIMER_TICK, (ActionEvent e) -> raceStep());
         raceTimer.start();
     }
 
@@ -360,8 +555,11 @@ public class TypingRaceGUI extends JFrame
     {
         typists = new Typist[numberOfTypists];
         typistColours = new String[numberOfTypists];
-        typistSpeedModifiers = new double[numberOfTypists];
+
+        typistDelays = new int[numberOfTypists];
+        typistCooldowns = new int[numberOfTypists];
         typistBurnoutMultipliers = new double[numberOfTypists];
+        typistBurnoutDurations = new int[numberOfTypists];
 
         String[] names = {
             "TURBOFINGERS",
@@ -391,11 +589,31 @@ public class TypingRaceGUI extends JFrame
             accuracy = accuracy + getStyleAccuracyModifier(style);
             accuracy = accuracy + getKeyboardAccuracyModifier(keyboard);
 
-            typistSpeedModifiers[i] = getStyleSpeedModifier(style)
-                + getKeyboardSpeedModifier(keyboard);
+            int delay = BASE_TYPING_DELAY;
+            delay = delay + getKeyboardDelayModifier(keyboard);
+
+            if (delay < 120)
+            {
+                delay = 120;
+            }
+
+            typistDelays[i] = delay;
+            typistCooldowns[i] = 0;
 
             typistBurnoutMultipliers[i] = getStyleBurnoutMultiplier(style)
                 * getKeyboardBurnoutMultiplier(keyboard);
+
+            typistBurnoutDurations[i] = BURNOUT_DURATION;
+
+            if (wristSupportBoxes[i].isSelected())
+            {
+                typistBurnoutDurations[i] = typistBurnoutDurations[i] - 1;
+
+                if (typistBurnoutDurations[i] < 1)
+                {
+                    typistBurnoutDurations[i] = 1;
+                }
+            }
 
             typistColours[i] = getColourHex((String) colourBoxes[i].getSelectedItem());
 
@@ -420,26 +638,6 @@ public class TypingRaceGUI extends JFrame
         else
         {
             return 0.05;
-        }
-    }
-
-    private double getStyleSpeedModifier(String style)
-    {
-        if (style.equals("Touch Typist"))
-        {
-            return 0.03;
-        }
-        else if (style.equals("Hunt & Peck"))
-        {
-            return -0.05;
-        }
-        else if (style.equals("Phone Thumbs"))
-        {
-            return 0.00;
-        }
-        else
-        {
-            return 0.08;
         }
     }
 
@@ -483,23 +681,23 @@ public class TypingRaceGUI extends JFrame
         }
     }
 
-    private double getKeyboardSpeedModifier(String keyboard)
+    private int getKeyboardDelayModifier(String keyboard)
     {
         if (keyboard.equals("Mechanical"))
         {
-            return 0.04;
+            return -90;
         }
         else if (keyboard.equals("Membrane"))
         {
-            return 0.00;
+            return 40;
         }
         else if (keyboard.equals("Touchscreen"))
         {
-            return -0.03;
+            return 120;
         }
         else
         {
-            return 0.12;
+            return -180;
         }
     }
 
@@ -598,7 +796,13 @@ public class TypingRaceGUI extends JFrame
 
         for (int i = 0; i < typists.length; i++)
         {
-            advanceTypist(typists[i], i);
+            typistCooldowns[i] = typistCooldowns[i] - TIMER_TICK;
+
+            if (typistCooldowns[i] <= 0)
+            {
+                advanceTypist(typists[i], i);
+                typistCooldowns[i] = typistDelays[i];
+            }
         }
 
         updateGUI();
@@ -635,11 +839,28 @@ public class TypingRaceGUI extends JFrame
             return;
         }
 
-        double typingChance = theTypist.getAccuracy() + typistSpeedModifiers[typistIndex];
+        double typingChance = theTypist.getAccuracy();
 
         if (caffeineBox.isSelected() && turnCounter <= 10)
         {
-            typingChance = typingChance + CAFFEINE_SPEED_BOOST;
+            typingChance = typingChance + CAFFEINE_ACCURACY_BOOST;
+        }
+
+        if (energyDrinkBoxes[typistIndex].isSelected())
+        {
+            if (theTypist.getProgress() < passageLength / 2)
+            {
+                typingChance = typingChance + ENERGY_DRINK_FIRST_HALF_BOOST;
+            }
+            else
+            {
+                typingChance = typingChance - ENERGY_DRINK_SECOND_HALF_PENALTY;
+            }
+        }
+
+        if (headphonesBoxes[typistIndex].isSelected())
+        {
+            typingChance = typingChance + HEADPHONES_MISTYPE_REDUCTION;
         }
 
         if (typingChance > 1.0)
@@ -687,7 +908,7 @@ public class TypingRaceGUI extends JFrame
 
         if (Math.random() < burnoutRisk)
         {
-            theTypist.burnOut(BURNOUT_DURATION);
+            theTypist.burnOut(typistBurnoutDurations[typistIndex]);
             theTypist.setAccuracy(theTypist.getAccuracy() - 0.01);
         }
     }
@@ -759,6 +980,9 @@ public class TypingRaceGUI extends JFrame
             keyboardBoxes[i].setEnabled(enabled);
             symbolFields[i].setEnabled(enabled);
             colourBoxes[i].setEnabled(enabled);
+            wristSupportBoxes[i].setEnabled(enabled);
+            energyDrinkBoxes[i].setEnabled(enabled);
+            headphonesBoxes[i].setEnabled(enabled);
         }
     }
 
