@@ -248,8 +248,7 @@ public class TypingRaceLogic
             typistDelays[i] = delay;
             typistCooldowns[i] = 0;
 
-            typistBurnoutMultipliers[i] = getStyleBurnoutMultiplier(style)
-                * getKeyboardBurnoutMultiplier(keyboard);
+            typistBurnoutMultipliers[i] = getStyleBurnoutMultiplier(style);
 
             typistBurnoutDurations[i] = BURNOUT_DURATION;
 
@@ -348,7 +347,7 @@ public class TypingRaceLogic
                 typingChance = typingChance + ENERGY_DRINK_FIRST_HALF_BOOST;
             }
         }
-
+        
         if (settings.headphones)
         {
             typingChance = typingChance + HEADPHONES_MISTYPE_REDUCTION;
@@ -832,7 +831,6 @@ public class TypingRaceLogic
                 + ": accuracy " + signed(getKeyboardAccuracyModifier(keyboard))
                 + ", speed delay " + signed(getKeyboardDelayModifier(keyboard)) + "ms"
                 + " (final delay " + finalDelay + "ms)"
-                + ", burnout risk x" + getKeyboardBurnoutMultiplier(keyboard)
                 + ".\n";
 
             if (settings[i].wristSupport)
@@ -985,26 +983,6 @@ public class TypingRaceLogic
         else
         {
             return -180;
-        }
-    }
-
-    private double getKeyboardBurnoutMultiplier(String keyboard)
-    {
-        if (keyboard.equals("Mechanical"))
-        {
-            return 1.00;
-        }
-        else if (keyboard.equals("Membrane"))
-        {
-            return 0.95;
-        }
-        else if (keyboard.equals("Touchscreen"))
-        {
-            return 0.90;
-        }
-        else
-        {
-            return 1.20;
         }
     }
 
